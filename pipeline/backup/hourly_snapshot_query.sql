@@ -1,0 +1,16 @@
+-- Scheduled Query: snapshot horário do estado atual de cada transaction.
+-- Roda a cada 1h via BigQuery Data Transfer.
+-- Lê de `transactions_raw_latest` (view que retorna o registro mais recente por
+-- document_id) e grava raw JSON em `transactions_snapshots` com `snapshot_at`.
+INSERT INTO `validator-demo-project.validator_backup.transactions_snapshots`
+  (snapshot_at, document_id, document_name, last_modified, operation, data, event_id)
+SELECT
+  CURRENT_TIMESTAMP() AS snapshot_at,
+  document_id,
+  document_name,
+  timestamp AS last_modified,
+  operation,
+  SAFE.PARSE_JSON(data) AS data,
+  event_id
+FROM `validator-demo-project.validator.transactions_raw_latest`
+WHERE operation != 'DELETE';

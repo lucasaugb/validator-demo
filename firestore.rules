@@ -1,0 +1,356 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/agentes/$(request.auth.uid)).data;
+    }
+
+    function role() {
+      return userDoc().role;
+    }
+
+    function active() {
+      return userDoc().active;
+    }
+
+    function userSetor() {
+      return userDoc().setor;
+    }
+
+    function userName() {
+      return userDoc().name;
+    }
+
+    // Expande o setor armazenado em LISTA de setores cobertos. Pra supervisor
+    // com setor virtual ('premium_starter' → ['premium','starter'];
+    // 'online_eventos' → ['online','eventos']); pros outros, lista
+    // de 1 elemento. Usado em rules pra checar se o doc está no escopo.
+    function userSetoresAlcance() {
+      let s = userSetor();
+      return s == 'premium_starter' ? ['premium', 'starter']
+        : s == 'online_eventos' ? ['online', 'eventos']
+        : [s];
+    }
+
+    function isSuperAdmin() {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/agentes/$(request.auth.uid)) &&
+        active() &&
+        role() == 'super_admin';
+    }
+
+    function isAdminOrAbove() {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/agentes/$(request.auth.uid)) &&
+        active() &&
+        (role() == 'admin' || role() == 'super_admin');
+    }
+
+    function isSupervisor() {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/agentes/$(request.auth.uid)) &&
+        active() &&
+        role() == 'supervisor';
+    }
+
+    function isSupervisorOrAbove() {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/agentes/$(request.auth.uid)) &&
+        active() &&
+        (role() == 'supervisor' || role() == 'admin' || role() == 'super_admin');
+    }
+
+    function isSelf(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    // Usuário autenticado com doc ativo (qualquer papel). Usado pra reads que
+    // todo mundo logado pode fazer (ex.: metas/forecast).
+    function isActiveUser() {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/agentes/$(request.auth.uid)) &&
+        active();
+    }
+
+    // Capability pra DEFINIR/ALTERAR metas: independente do papel. Concedida
+    // só pelo super_admin (ver regra de update em /agentes). Doc sem o campo
+    // conta como false.
+    function canEditMetas() {
+      return isActiveUser() &&
+        (userDoc().get('canEditMetas', false) == true || role() == 'super_admin');
+    }
+
+    // Whitelist dos campos que o agente PODE submeter como proposta de edição
+    // (pendingEdit.changes). Sem isso, agente malicioso injeta `agenteId` /
+    // `agenteSetor` / `isActivation` / `systemValidation` no `changes`; admin
+    // aprova achando que é só um nome de cliente; comissão migra de dono.
+    //
+    // Os 4 campos `*TransactionReceipts` / `*ConversationReceipts` carregam listas
+    // de URLs do Storage pra add/remove na aprovação. Storage rules já
+    // garantem que só o dono ou admin/supervisor escrevem em
+    // `transactions/{agenteId}/...`: então URL falsificada não passa pela camada
+    // anterior.
+    function pendingEditChangesAllowed() {
+      let changes = request.resource.data.pendingEdit.changes;
+      // Campos balance/bonus/netCapital foram removidos do escopo em 2026-05-14.
+      return changes.keys().hasOnly([
+        'clientName',
+        'clientEmail',
+        'clientPhone',
+        'clientId',
+        'currency',
+        'amount',
+        'transactionDate',
+        'addedTransactionReceipts',
+        'removedTransactionReceipts',
+        'addedConversationReceipts',
+        'removedConversationReceipts'
+      ]);
+    }
+
+    // Agentes:
+    //   - cada usuário lê o próprio doc (precisa para o Auth resolver o role)
+    //   - admin/super_admin/supervisor leem todos (supervisor filtra client-side)
+    //   - super_admin tem write total: create/update/delete, incluindo gestores
+    //     e outros super_admins (cuidado em quem ganha esse papel).
+    //   - admin NÃO cria e NÃO deleta, só atualiza, e mesmo assim NÃO pode
+    //     mexer em doc super_admin nem promover ninguém pra super_admin
+    //     (defesa contra escalada de privilégio). Admin pode trocar setor,
+    //     trocar tipo (entre agente/supervisor/admin) e ativar/desativar.
+    //   - supervisor pode patchar SOMENTE `active` de AGENTES do mesmo setor.
+    match /agentes/{uid} {
+      allow read: if isSelf(uid) || isSupervisorOrAbove();
+      allow create, delete: if isSuperAdmin();
+      allow update: if isSuperAdmin() ||
+        (
+          isAdminOrAbove() &&
+          // Admin não toca doc super_admin nem promove ninguém pra super_admin.
+          // O resto (role/setor/active/slackUserId/avatarUrl) é livre.
+          resource.data.role != 'super_admin' &&
+          request.resource.data.role != 'super_admin' &&
+          // Admin NÃO concede/revoga `canEditMetas`: capability sensível,
+          // reservada ao super_admin. O valor precisa ficar inalterado.
+          request.resource.data.get('canEditMetas', false) == resource.data.get('canEditMetas', false)
+        ) ||
+        (
+          isSupervisor() &&
+          // alvo precisa ser AGENTE (role 'agente'/'gestor') dentro do escopo
+          // do supervisor (cobre setor virtual 'premium_starter' → premium+starter)
+          resource.data.role == 'agente' &&
+          'setor' in resource.data &&
+          resource.data.setor in userSetoresAlcance() &&
+          // só pode mexer no campo `active` (toggle)
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['active'])
+        ) ||
+        (
+          // Cada usuário pode patchar o PRÓPRIO lastLoginAt, avatarUrl e
+          // mustChangePassword. Diff é restrito a esses campos, nada mais
+          // do doc muda. avatarUrl precisa ser https:// (anti-phishing/xss).
+          // mustChangePassword: se o self ESTÁ modificando, só pode ser
+          // pra DELETAR (limpar o flag depois de trocar a senha). Patches
+          // que não tocam mustChangePassword (ex: só avatarUrl) ficam ok
+          // mesmo que o campo continue setado no doc.
+          isSelf(uid) &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastLoginAt', 'avatarUrl', 'mustChangePassword']) &&
+          (
+            !('avatarUrl' in request.resource.data) ||
+            request.resource.data.avatarUrl is string &&
+            request.resource.data.avatarUrl.matches('https://.*')
+          ) &&
+          (
+            !request.resource.data.diff(resource.data).affectedKeys().hasAny(['mustChangePassword']) ||
+            !('mustChangePassword' in request.resource.data)
+          )
+        );
+    }
+
+    // Transações:
+    //   - agente cria os próprios com defaults seguros, ID e setor TRAVADOS
+    //   - agente lê só os próprios
+    //   - supervisor lê TUDO (rules amplas; filtro de setor é feito na UI).
+    //     Necessário porque a cascata de revalidação faz `getDocs` no grupo
+    //     de match (clientId+amount+currency+transactionDate) que pode trazer
+    //     transactions de outros setores: sem read amplo o snapshot falha
+    //     inteiro com permission-denied.
+    //   - admin/super_admin leem tudo
+    //   - admin/super_admin atualizam livremente
+    //   - supervisor atualiza/deleta apenas transações do PRÓPRIO setor,
+    //     com UMA exceção: reset de validação em transactions cross-setor (pra
+    //     a cascata funcionar).
+    match /transactions/{transactionId} {
+      // Read:
+      //   - supervisor+admin+super_admin: tudo (UI filtra por setor)
+      //   - agente dono: só os próprios
+      //   - QUALQUER signed-in pode ler doc INEXISTENTE, necessário pra a
+      //     idempotência do createTransaction (tx.get no clientNonce antes de
+      //     decidir criar). Sem isso, agente leva permission-denied porque
+      //     `resource` é null e `resource.data.agenteId` lança erro na rule.
+      //     Risco: zero info útil vaza: nonce é UUID v4 (122 bits aleatório),
+      //     bruteforce impossível.
+      allow read: if isSupervisorOrAbove() ||
+        (isSignedIn() && resource == null) ||
+        (isSignedIn() && resource.data.agenteId == request.auth.uid);
+
+      // CREATE: trava agenteId + agenteName + agenteSetor pra impedir
+      // forjadura (transação aparecer em setor errado / com nome de outro).
+      // Defaults de validação obrigatórios.
+      allow create: if isSignedIn() &&
+        request.resource.data.agenteId == request.auth.uid &&
+        request.resource.data.agenteName == userName() &&
+        request.resource.data.agenteSetor == userSetor() &&
+        request.resource.data.systemValidation == 'pending' &&
+        request.resource.data.conversationValidation == 'pending' &&
+        request.resource.data.isActivation == false;
+
+      // Update:
+      //   - admin/super_admin: livre
+      //   - supervisor: livre em transactions do próprio setor
+      //   - supervisor cross-setor: NÃO MEXE. Cascata cross-setor é feita pelo
+      //     trigger `validate-on-update` da Cloud Function (service account
+      //     que ignora rules) quando o doc do PRÓPRIO setor é resetado. Sem
+      //     essa restrição, supervisor poderia resetar `systemValidation` de
+      //     transaction alheio e mascarar fraude.
+      //   - agente dono: SÓ `pendingEdit` (com whitelist) OU campos de FX.
+      //     A whitelist em pendingEdit.changes impede o agente de propor
+      //     mudar agenteId/agenteSetor/isActivation/etc, só campos do
+      //     domínio da transação (cliente, valor, data).
+      allow update: if isAdminOrAbove() ||
+        (
+          isSupervisor() &&
+          'agenteSetor' in resource.data &&
+          resource.data.agenteSetor in userSetoresAlcance()
+        ) ||
+        (
+          isSignedIn() &&
+          resource.data.agenteId == request.auth.uid &&
+          // Edit request inclui o contador cumulativo `editRequestCount`. Agente
+          // só pode mexer nessa lista: agenteId/setor/validations etc. ficam
+          // protegidos pelo `hasOnly` (whitelist).
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['pendingEdit', 'editRequestCount', 'updatedAt']) &&
+          (
+            !('pendingEdit' in request.resource.data) ||
+            request.resource.data.pendingEdit == null ||
+            pendingEditChangesAllowed()
+          ) &&
+          // editRequestCount só é aceito como inteiro positivo. Não verificamos
+          // increment estrito (+1) porque o cliente usa FieldValue.increment(1)
+          // e o impacto de fake count é só "alerta no bell", risco baixo.
+          (
+            !('editRequestCount' in request.resource.data) ||
+            (request.resource.data.editRequestCount is int &&
+             request.resource.data.editRequestCount >= 1)
+          )
+        ) ||
+        (isSignedIn() &&
+         resource.data.agenteId == request.auth.uid &&
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['usdAmount', 'usdRate', 'usdRateDate', 'updatedAt'])) ||
+        // Exceção: agente dono pode anexar comprovantes (registro e/ou conversa)
+        // SEM passar pelo pendingEdit em docs importados pela planilha. NÃO
+        // gateamos por `systemValidation == 'pending'` porque a Cloud Function
+        // de validação roda a cada 30min e pode mover o doc pra verified/
+        // invalid/duplicate ANTES do gestor anexar: quando isso acontecia,
+        // o atalho falhava silenciosamente (#bug 2026-05-26). A comprovação
+        // é audit trail, independente do match em source_transactions. Append-only
+        // garante que o atalho não removerá nem substituirá imagens, pra
+        // isso, o caminho é pendingEdit. Demais edições (cliente, valor, data)
+        // continuam exigindo pendingEdit.
+        (
+          isSignedIn() &&
+          resource.data.agenteId == request.auth.uid &&
+          'importedAt' in resource.data &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['transactionReceiptUrls', 'conversationReceiptUrls', 'updatedAt']) &&
+          request.resource.data.get('transactionReceiptUrls', []).size() >= resource.data.get('transactionReceiptUrls', []).size() &&
+          request.resource.data.get('conversationReceiptUrls', []).size() >= resource.data.get('conversationReceiptUrls', []).size()
+        );
+
+      // Delete:
+      //   - admin/super_admin: livre
+      //   - supervisor: só transações do próprio setor (defensive: doc precisa
+      //     ter agenteSetor; transações legados sem o campo só admin deleta)
+      allow delete: if isAdminOrAbove() ||
+        (
+          isSupervisor() &&
+          'agenteSetor' in resource.data &&
+          resource.data.agenteSetor in userSetoresAlcance()
+        );
+    }
+
+    // Contador de transações sequenciais (transactionNumber).
+    //   - read: qualquer signed-in (a transação do client precisa)
+    //   - update: SÓ via transação que INCREMENTA EM +1. Sem isso, qualquer
+    //     usuário podia setar o counter pra valor arbitrário (DoS no cadastro
+    //     ou colisão de números).
+    //   - create: permitido pra inicialização (caso o doc não exista).
+    //
+    // Observação: não usamos `is int` porque o SDK do JS pode serializar como
+    // float em casos de borda (ex. quando o valor existente foi gravado por
+    // outra biblioteca como double). A constraint matemática `== prev + 1` já
+    // garante incremento sequencial: qualquer valor não-numérico falha aqui.
+    match /metadata/counters {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() &&
+        request.resource.data.transactionsCounter == 1;
+      allow update: if isSignedIn() &&
+        request.resource.data.transactionsCounter == resource.data.transactionsCounter + 1;
+      allow delete: if false;
+    }
+
+    // Log de atividade humana (auditoria).
+    //   - Qualquer agente autenticado pode CRIAR seu próprio entry (com actorUid==auth.uid)
+    //   - actorRole/actorName/actorSetor precisam bater com o doc real do usuário
+    //     (impede poisoning: agente forjando entries como se fosse admin)
+    //   - Só admin/super_admin podem LER (supervisor não tem auditoria)
+    //   - Ninguém edita ou apaga: o log é append-only
+    match /activityLog/{entryId} {
+      allow read: if isAdminOrAbove();
+      allow create: if isSignedIn() &&
+        request.resource.data.actorUid == request.auth.uid &&
+        (
+          !('actorRole' in request.resource.data) ||
+          request.resource.data.actorRole == role()
+        ) &&
+        (
+          !('actorName' in request.resource.data) ||
+          request.resource.data.actorName == userName()
+        );
+      allow update, delete: if false;
+    }
+
+    // Auditoria automática de ativações (camada de defesa contra falso
+    // positivo de isActivation). Escrita só pela service account do
+    // validator-validation (que ignora rules). Admin/super lê.
+    match /audit_status/{docId} {
+      allow read: if isAdminOrAbove();
+      allow write: if false;
+    }
+    match /audit_reports/{reportId} {
+      allow read: if isAdminOrAbove();
+      allow write: if false;
+    }
+
+    // Metas comerciais (volume validado USD).
+    //   - `metas/default`  → baseline padrão por setor.
+    //   - `metas/{yyyy-MM}` → overrides do mês (setores + colaboradores).
+    // Read: qualquer usuário ativo (agente vê a própria meta / meta do time no
+    //   forecast). Write: só quem tem a capability `canEditMetas`.
+    match /metas/{docId} {
+      allow read: if isActiveUser();
+      allow write: if canEditMetas();
+    }
+
+    // Rollup de realizado por setor (cache pro forecast "meu time" do agente).
+    // Guarda só agregados (realizado + nº elegíveis), zero PII, zero meta
+    // individual. Escrito pelos dashboards de supervisor+; lido por todos os
+    // usuários ativos.
+    match /metas_rollup/{docId} {
+      allow read: if isActiveUser();
+      allow write: if isSupervisorOrAbove();
+    }
+  }
+}

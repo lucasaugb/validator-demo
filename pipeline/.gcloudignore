@@ -1,0 +1,11 @@
+.env
+.env.local
+.venv/
+__pycache__/
+*.pyc
+backfill.py
+backfill_source_country.py
+extract.py
+create_view.sql
+.gitignore
+firestore-bigquery-export.params.env

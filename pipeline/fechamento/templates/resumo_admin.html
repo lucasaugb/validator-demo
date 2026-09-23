@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Resumo Administrativo · {{ month_label }}</title>
+<style>
+  @page {
+    size: A4;
+    margin: 18mm 14mm 18mm 14mm;
+    @bottom-right {
+      content: "página " counter(page) " de " counter(pages);
+      font-size: 8pt;
+      color: #94a3b8;
+      font-family: 'DejaVu Sans Mono', monospace;
+    }
+    @bottom-left {
+      content: "Gerado em {{ generated_at }} por {{ actor_name }}";
+      font-size: 8pt;
+      color: #94a3b8;
+      font-family: 'DejaVu Sans Mono', monospace;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: 'DejaVu Sans', 'Liberation Sans', Arial, sans-serif;
+    color: #0a0e1a;
+    font-size: 10.5pt;
+    line-height: 1.45;
+  }
+  .mono, .num {
+    font-family: 'DejaVu Sans Mono', 'Liberation Mono', monospace;
+    font-variant-numeric: tabular-nums;
+  }
+  header {
+    border-bottom: 2px solid #0a0e1a;
+    padding-bottom: 8mm;
+    margin-bottom: 8mm;
+  }
+  header .eyebrow {
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    font-size: 8pt;
+    color: #64748b;
+    font-weight: 600;
+  }
+  header h1 {
+    font-size: 18pt;
+    margin: 2mm 0 1mm 0;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+  header .meta {
+    color: #64748b;
+    font-size: 9pt;
+  }
+
+  /* Identification block: mesmo padrão minimalista do extrato individual */
+  .ident {
+    margin-bottom: 6mm;
+  }
+  .ident-row {
+    display: flex;
+    align-items: baseline;
+    padding: 1mm 0;
+  }
+  .ident-label {
+    width: 36mm;
+    flex-shrink: 0;
+    font-size: 7.5pt;
+    color: #94a3b8;
+    font-weight: 400;
+  }
+  .ident-value {
+    flex: 1;
+    font-size: 10pt;
+    color: #0a0e1a;
+  }
+  .ident-value.strong { font-weight: 600; }
+  .ident-value.lost {
+    color: #c25555;
+  }
+  .ident-value.total {
+    font-family: 'DejaVu Sans Mono', monospace;
+    font-variant-numeric: tabular-nums;
+    font-size: 12pt;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+  .ident-value .sub {
+    display: block;
+    margin-top: 0.3mm;
+    font-size: 8pt;
+    color: #94a3b8;
+    font-family: 'DejaVu Sans Mono', monospace;
+    font-variant-numeric: tabular-nums;
+    font-weight: 400;
+  }
+
+  /* Section title */
+  .section-title {
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    font-size: 8pt;
+    color: #64748b;
+    font-weight: 700;
+    border-bottom: 1px solid #e2e8f0;
+    padding-bottom: 2mm;
+    margin: 6mm 0 3mm 0;
+  }
+
+  /* Team table */
+  table.team {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 9.5pt;
+  }
+  table.team th {
+    text-align: left;
+    padding: 2.5mm 3mm;
+    background: #f1f5f9;
+    border-bottom: 1px solid #cbd5e1;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-size: 7.5pt;
+    font-weight: 700;
+    color: #64748b;
+  }
+  table.team th.right { text-align: right; }
+  table.team td {
+    padding: 2.5mm 3mm;
+    border-bottom: 1px solid #f1f5f9;
+    vertical-align: top;
+  }
+  table.team td.right { text-align: right; }
+  table.team tbody tr:nth-child(even) { background: #fafbfc; }
+  table.team tfoot td {
+    background: #0a0e1a;
+    color: #ffffff;
+    font-weight: 700;
+    padding: 3.5mm 3mm;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-size: 9pt;
+  }
+  table.team tfoot td.right {
+    font-family: 'DejaVu Sans Mono', monospace;
+    font-variant-numeric: tabular-nums;
+    font-size: 11pt;
+  }
+  .agent-name { font-weight: 600; }
+  .agent-setor {
+    color: #94a3b8;
+    font-size: 8.5pt;
+    margin-top: 0.3mm;
+  }
+  .pending-marker {
+    display: inline-block;
+    margin-left: 3mm;
+    padding: 0.4mm 1.5mm;
+    background: #fef3c7;
+    color: #b45309;
+    font-size: 6.5pt;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 700;
+    border-radius: 2px;
+  }
+
+  /* Disclosures */
+  .disclosures {
+    margin-top: 10mm;
+    padding-top: 4mm;
+    border-top: 1px solid #cbd5e1;
+    color: #475569;
+    font-size: 8pt;
+    line-height: 1.55;
+    text-align: justify;
+  }
+  .disclosures p { margin: 0 0 2.5mm 0; }
+  .disclosures p:last-child { margin-bottom: 0; }
+  .disclosures .heading {
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    font-size: 7pt;
+    color: #94a3b8;
+    margin-bottom: 2mm;
+    font-weight: 600;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="eyebrow">Validator · Demo Source · Administrativo</div>
+  <h1>Extrato geral</h1>
+  <div class="meta">{{ month_label }} · {{ setor_label }}</div>
+</header>
+
+<div class="ident">
+  <div class="ident-row">
+    <div class="ident-label">Competência</div>
+    <div class="ident-value strong">{{ month_label }}</div>
+  </div>
+  <div class="ident-row">
+    <div class="ident-label">Setor</div>
+    <div class="ident-value">{{ setor_label }}</div>
+  </div>
+  <div class="ident-row">
+    <div class="ident-label">Agentes</div>
+    <div class="ident-value">{{ summary.agentCount }}</div>
+  </div>
+  <div class="ident-row">
+    <div class="ident-label">Transações validadas</div>
+    <div class="ident-value">{{ summary.totalValidated }}</div>
+  </div>
+  <div class="ident-row">
+    <div class="ident-label">Ativações</div>
+    <div class="ident-value">{{ summary.totalActivations }}</div>
+  </div>
+  <div class="ident-row">
+    <div class="ident-label">Bônus de ativação</div>
+    <div class="ident-value">{{ summary.totalFixed | money }}</div>
+  </div>
+  <div class="ident-row">
+    <div class="ident-label">{{ transaction_pct_percent }}% sobre transações</div>
+    <div class="ident-value">{{ summary.totalPct | money }}</div>
+  </div>
+  {% if summary.totalPending > 0 %}
+  <div class="ident-row">
+    <div class="ident-label">Aguardando operação</div>
+    <div class="ident-value">{{ summary.totalPending | money }} · entra na próxima competência</div>
+  </div>
+  {% endif %}
+  {% if summary.totalLost > 0 %}
+  <div class="ident-row">
+    <div class="ident-label">Não elegível</div>
+    <div class="ident-value lost">{{ summary.totalLost | money }} · 1% perdido</div>
+  </div>
+  {% endif %}
+  <div class="ident-row">
+    <div class="ident-label">Total a pagar</div>
+    <div class="ident-value total">
+      {{ summary.totalPayable | money }}
+      {% if summary.totalEur %}
+      <span class="sub">≈ €{{ '%.2f' | format(summary.totalEur) }} · cotação USD→EUR {{ '%.4f' | format(summary.eurRate) }} ({{ summary.eurDate | dateBR }})</span>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="section-title">Detalhamento por agente</div>
+
+{% if agents %}
+<table class="team">
+  <thead>
+    <tr>
+      <th>Agente</th>
+      <th class="right" style="width: 16mm;">Validados</th>
+      <th class="right" style="width: 16mm;">Ativações</th>
+      <th class="right" style="width: 26mm;">Bônus</th>
+      <th class="right" style="width: 26mm;">{{ transaction_pct_percent }}%</th>
+      <th class="right" style="width: 30mm;">Total</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for a in agents %}
+    <tr>
+      <td>
+        <div class="agent-name">
+          {{ a.agenteName }}
+          {% if a.activationsPendingOperation > 0 %}
+          <span class="pending-marker">{{ a.activationsPendingOperation }} aguarda</span>
+          {% endif %}
+        </div>
+        {% if a.setor %}
+        <div class="agent-setor">
+          {{ {'premium': 'Premium', 'starter': 'Starter', 'eventos': 'Eventos', 'online': 'Online'}.get(a.setor, a.setor) }}
+        </div>
+        {% endif %}
+      </td>
+      <td class="right num">{{ a.validatedTransactions }}</td>
+      <td class="right num">{{ a.activations }}</td>
+      <td class="right num">{{ a.fixedUsd | money }}</td>
+      <td class="right num">{{ a.percentageUsd | money }}</td>
+      <td class="right num"><strong>{{ a.payableRawTotal | money }}</strong></td>
+    </tr>
+    {% endfor %}
+  </tbody>
+  <tfoot>
+    <tr>
+      <td>Total</td>
+      <td class="right">{{ summary.totalValidated }}</td>
+      <td class="right">{{ summary.totalActivations }}</td>
+      <td class="right">{{ summary.totalFixed | money }}</td>
+      <td class="right">{{ summary.totalPct | money }}</td>
+      <td class="right">{{ summary.totalPayable | money }}</td>
+    </tr>
+  </tfoot>
+</table>
+{% else %}
+<div style="padding: 10mm; text-align: center; color: #94a3b8; font-style: italic;">
+  Nenhum agente com comissão no período.
+</div>
+{% endif %}
+
+<div class="disclosures">
+  <div class="heading">Descritivo do resumo</div>
+  <p>
+    Este documento consolida as comissões apuradas no encerramento da
+    competência indicada, abrangendo todos os agentes da operação cujos
+    transações foram validados no período pelos sistemas da Demo Source.
+    Os valores observam as regras vigentes de comissionamento:
+    {{ transaction_pct_percent }}% (um por cento) sobre o valor de cada
+    transação validada, acrescido do bônus por ativação validada,
+    escalonado pelo tempo do cliente na Premium/Starter no momento do
+    registro (US$ 10 em até 7 dias; US$ 7,50 de 8 a 15 dias; US$ 6 de
+    16 a 30 dias; US$ 5 acima de 30 dias ou sem cadastro no CRM). Em
+    ativações, o {{ transaction_pct_percent }}% só
+    é considerado elegível quando confirmada operação do cliente em data
+    posterior à da respectiva transação.
+  </p>
+  <p>
+    Conversões de USD para EUR, quando indicadas, observam a cotação
+    oficial do Banco Central Europeu publicada para a data de emissão
+    deste resumo (fonte: frankfurter.app). Os valores em moeda
+    estrangeira têm caráter informativo e podem sofrer variação até a
+    efetiva liquidação. Cada agente notificado recebeu também, em
+    mensagem individual, o extrato detalhado de sua respectiva apuração.
+  </p>
+  <p>
+    O presente resumo está sujeito a conferência da coordenação
+    responsável. Divergências apontadas pelos agentes devem ser
+    revisadas no prazo de 5 (cinco) dias úteis a contar do recebimento
+    dos extratos individuais, antes do encerramento contábil definitivo
+    da competência.
+  </p>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Extrato de Comissão · {{ month_label }}</title>
+<style>
+  @page {
+    size: A4;
+    margin: 18mm 14mm 18mm 14mm;
+    @bottom-right {
+      content: "página " counter(page) " de " counter(pages);
+      font-size: 8pt;
+      color: #94a3b8;
+      font-family: 'DejaVu Sans Mono', monospace;
+    }
+    @bottom-left {
+      content: "Gerado em {{ generated_at }}";
+      font-size: 8pt;
+      color: #94a3b8;
+      font-family: 'DejaVu Sans Mono', monospace;
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    font-family: 'DejaVu Sans', 'Liberation Sans', Arial, sans-serif;
+    color: #0a0e1a;
+    font-size: 10.5pt;
+    line-height: 1.45;
+    margin: 0;
+    padding: 0;
+  }
+
+  .mono, .num {
+    font-family: 'DejaVu Sans Mono', 'Liberation Mono', monospace;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Header */
+  header {
+    border-bottom: 2px solid #0a0e1a;
+    padding-bottom: 8mm;
+    margin-bottom: 8mm;
+  }
+  header .eyebrow {
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    font-size: 8pt;
+    color: #64748b;
+    font-weight: 600;
+  }
+  header h1 {
+    font-size: 18pt;
+    margin: 2mm 0 1mm 0;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+  header .meta {
+    color: #64748b;
+    font-size: 9pt;
+  }
+
+  /* Identification block: minimalista, label discreto + valor em destaque */
+  .ident {
+    margin-bottom: 6mm;
+  }
+  .ident-row {
+    display: flex;
+    align-items: baseline;
+    padding: 1mm 0;
+  }
+  .ident-label {
+    width: 30mm;
+    flex-shrink: 0;
+    font-size: 7.5pt;
+    color: #94a3b8;
+    font-weight: 400;
+  }
+  .ident-value {
+    flex: 1;
+    font-size: 10pt;
+    color: #0a0e1a;
+  }
+  .ident-value.strong {
+    font-weight: 600;
+  }
+  .ident-value.total {
+    font-family: 'DejaVu Sans Mono', monospace;
+    font-variant-numeric: tabular-nums;
+    font-size: 12pt;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+  .ident-value .sub {
+    display: block;
+    margin-top: 0.3mm;
+    font-size: 8pt;
+    color: #94a3b8;
+    font-family: 'DejaVu Sans Mono', monospace;
+    font-variant-numeric: tabular-nums;
+    font-weight: 400;
+  }
+
+  /* Section title */
+  .section-title {
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    font-size: 8pt;
+    color: #64748b;
+    font-weight: 700;
+    border-bottom: 1px solid #e2e8f0;
+    padding-bottom: 2mm;
+    margin: 6mm 0 3mm 0;
+  }
+
+  /* Transactions table */
+  table.tx {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 9.5pt;
+  }
+  table.tx th {
+    text-align: left;
+    padding: 2.5mm 3mm;
+    background: #f1f5f9;
+    border-bottom: 1px solid #cbd5e1;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-size: 7.5pt;
+    font-weight: 700;
+    color: #64748b;
+  }
+  table.tx th.right { text-align: right; }
+  table.tx td {
+    padding: 2.5mm 3mm;
+    border-bottom: 1px solid #f1f5f9;
+    vertical-align: top;
+  }
+  table.tx td.right { text-align: right; }
+  table.tx tbody tr:nth-child(even) { background: #fafbfc; }
+  .transaction-num {
+    color: #64748b;
+    font-size: 9pt;
+  }
+  .client-id {
+    color: #94a3b8;
+    font-size: 8pt;
+    margin-top: 0.5mm;
+  }
+  .type-activation {
+    color: #7c3aed;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 7.5pt;
+    font-weight: 600;
+  }
+  .type-common {
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 7.5pt;
+  }
+  .commission-fixed { color: #7c3aed; }
+  .commission-pct { color: #0a0e1a; font-weight: 600; }
+  .commission-pending {
+    color: #d97706;
+    text-transform: uppercase;
+    font-size: 7.5pt;
+    letter-spacing: 0.08em;
+  }
+  .commission-lost {
+    color: #dc2626;
+    text-decoration: line-through;
+    text-transform: uppercase;
+    font-size: 7.5pt;
+    letter-spacing: 0.08em;
+  }
+
+  /* Summary block */
+  .summary {
+    margin-top: 6mm;
+    border: 1px solid #e2e8f0;
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .summary-row {
+    display: table;
+    width: 100%;
+    border-bottom: 1px solid #f1f5f9;
+  }
+  .summary-row:last-child { border-bottom: none; }
+  .summary-row .label {
+    display: table-cell;
+    padding: 3mm 5mm;
+    color: #64748b;
+    width: 70%;
+  }
+  .summary-row .sublabel {
+    color: #94a3b8;
+    font-size: 8.5pt;
+    margin-left: 4mm;
+  }
+  .summary-row .value {
+    display: table-cell;
+    padding: 3mm 5mm;
+    text-align: right;
+    font-weight: 600;
+  }
+  .summary-row.total {
+    background: #0a0e1a;
+    color: #ffffff;
+    border-top: 2px solid #0a0e1a;
+  }
+  .summary-row.total .label,
+  .summary-row.total .value {
+    color: #ffffff;
+    font-size: 12pt;
+    font-weight: 700;
+  }
+  .summary-row.total .label {
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+  }
+  .summary-row.muted .value { color: #94a3b8; }
+  .summary-row.amber .value { color: #d97706; }
+  .summary-row.rose .value { color: #dc2626; }
+
+  /* EUR conversion inline na coluna de valor */
+  .eur-line {
+    margin-top: 1mm;
+    font-size: 7.5pt;
+    color: #64748b;
+    font-family: 'DejaVu Sans Mono', monospace;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.25;
+  }
+  .eur-rate {
+    color: #94a3b8;
+    font-size: 7pt;
+  }
+
+  /* Disclosures finais: descritivo formal */
+  .disclosures {
+    margin-top: 10mm;
+    padding-top: 4mm;
+    border-top: 1px solid #cbd5e1;
+    color: #475569;
+    font-size: 8pt;
+    line-height: 1.55;
+    text-align: justify;
+  }
+  .disclosures p { margin: 0 0 2.5mm 0; }
+  .disclosures p:last-child { margin-bottom: 0; }
+  .disclosures .heading {
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    font-size: 7pt;
+    color: #94a3b8;
+    margin-bottom: 2mm;
+    font-weight: 600;
+  }
+
+  .empty {
+    padding: 10mm;
+    text-align: center;
+    color: #94a3b8;
+    font-style: italic;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="eyebrow">Validator · Demo Source</div>
+  <h1>Extrato de Comissão</h1>
+  <div class="meta">{{ month_label }} · {{ setor_label }}</div>
+</header>
+
+<div class="ident">
+  <div class="ident-row">
+    <div class="ident-label">Nome</div>
+    <div class="ident-value strong">{{ agent.agenteName }}</div>
+  </div>
+  <div class="ident-row">
+    <div class="ident-label">Setor</div>
+    <div class="ident-value">
+      {% if agent.setor %}
+        {{ {'premium': 'Premium', 'starter': 'Starter', 'eventos': 'Eventos', 'online': 'Online'}.get(agent.setor, agent.setor) }}
+      {% else %}-{% endif %}
+    </div>
+  </div>
+  <div class="ident-row">
+    <div class="ident-label">Competência</div>
+    <div class="ident-value">{{ month_label }}</div>
+  </div>
+  <div class="ident-row">
+    <div class="ident-label">Validados</div>
+    <div class="ident-value">
+      {{ agent.validatedTransactions }} transação{% if agent.validatedTransactions != 1 %}s{% endif %}
+      {% if agent.activations > 0 %}
+        · {{ agent.activations }} {% if agent.activations == 1 %}ativação{% else %}ativações{% endif %}
+      {% endif %}
+    </div>
+  </div>
+  <div class="ident-row">
+    <div class="ident-label">Total a pagar</div>
+    <div class="ident-value total">
+      {{ agent.payableRawTotal | money }}
+      {% if agent.totalEur %}
+      <span class="sub">≈ €{{ '%.2f' | format(agent.totalEur) }} · cotação USD→EUR {{ '%.4f' | format(agent.totalEurRate) }} ({{ agent.totalEurDate | dateBR }})</span>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="section-title">Transações que compõem a comissão</div>
+
+{% if agent.rows %}
+<table class="tx">
+  <thead>
+    <tr>
+      <th style="width: 12mm;">#</th>
+      <th style="width: 18mm;">Data</th>
+      <th>Cliente · Conta</th>
+      <th class="right" style="width: 22mm;">Valor</th>
+      <th style="width: 18mm;">Tipo</th>
+      <th class="right" style="width: 28mm;">Comissão</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in agent.rows %}
+    {% set d = row.transaction %}
+    {% set c = row.commission %}
+    <tr>
+      <td class="num transaction-num">#{{ d.transactionNumber if d.transactionNumber else '-' }}</td>
+      <td class="num">{{ d.transactionDate | dateBR }}</td>
+      <td>
+        <div>{{ d.clientName }}</div>
+        <div class="num client-id">{{ d.clientId }}</div>
+      </td>
+      <td class="num right">
+        {{ '%.2f' | format(d.amount or 0) }} {{ d.currency }}
+        {% if row.eurAmount is defined and row.eurAmount %}
+        <div class="eur-line">≈ €{{ '%.2f' | format(row.eurAmount) }}<br>
+          <span class="eur-rate">{{ '%.4f' | format(row.eurRate) }} · {{ row.eurDate | dateBR }}</span>
+        </div>
+        {% endif %}
+      </td>
+      <td>
+        {% if d.isActivation %}
+          <span class="type-activation">ativação</span>
+        {% else %}
+          <span class="type-common">comum</span>
+        {% endif %}
+      </td>
+      <td class="num right">
+        {% if c.fixedUsd > 0 %}
+          <div class="commission-fixed">+{{ c.fixedUsd | money }}</div>
+        {% endif %}
+        {% if c.status == 'eligible' and c.percentage > 0 %}
+          <div class="commission-pct">+{{ c.percentage | money }}</div>
+        {% elif c.status == 'pending_operation' %}
+          <div class="commission-pending">aguard. 1%</div>
+        {% elif c.status == 'not_eligible' %}
+          <div class="commission-lost">1% perdido</div>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="empty">Sem transações validadas no período.</div>
+{% endif %}
+
+<div class="section-title">Composição</div>
+
+<div class="summary">
+  <div class="summary-row">
+    <div class="label">
+      Bônus de ativação
+      <span class="sublabel">{{ agent.activations }} ativação(ões) · US$ 5-10 por dias na Premium/Starter</span>
+    </div>
+    <div class="value num">{{ agent.fixedUsd | money }}</div>
+  </div>
+  <div class="summary-row">
+    <div class="label">
+      {{ transaction_pct_percent }}% sobre transações validadas
+      <span class="sublabel">elegíveis</span>
+    </div>
+    <div class="value num">{{ agent.percentageUsd | money }}</div>
+  </div>
+  {% if agent.pendingUsd > 0 %}
+  <div class="summary-row amber">
+    <div class="label">
+      Aguardando operação
+      <span class="sublabel">{{ agent.activationsPendingOperation }} ativ · 1% represado</span>
+    </div>
+    <div class="value num">{{ agent.pendingUsd | money }}</div>
+  </div>
+  {% endif %}
+  {% if agent.lostUsd > 0 %}
+  <div class="summary-row rose">
+    <div class="label">
+      Não elegível
+      <span class="sublabel">{{ agent.activationsNotEligible }} ativ · 1% perdido</span>
+    </div>
+    <div class="value num">{{ agent.lostUsd | money }}</div>
+  </div>
+  {% endif %}
+  <div class="summary-row total">
+    <div class="label">Total a pagar</div>
+    <div class="value num">{{ agent.payableRawTotal | money }}</div>
+  </div>
+</div>
+
+<div class="disclosures">
+  <div class="heading">Descritivo do extrato</div>
+  <p>
+    Este documento consolida as comissões apuradas referentes à competência
+    indicada e corresponde às transações validadas pelos sistemas operacionais
+    da Demo Source no período. Os valores aqui informados decorrem da aplicação
+    das regras vigentes: {{ transaction_pct_percent }}% (um por cento) sobre o
+    valor de cada transação validada, acrescido do bônus por ativação
+    validada, escalonado pelo tempo do cliente na Premium/Starter no momento
+    do registro (US$ 10 em até 7 dias; US$ 7,50 de 8 a 15 dias; US$ 6 de
+    16 a 30 dias; US$ 5 acima de 30 dias ou sem cadastro no CRM). Em
+    ativações, o {{ transaction_pct_percent }}% só é
+    considerado elegível quando confirmada operação do cliente em data
+    posterior à da respectiva transação.
+  </p>
+  <p>
+    Conversões de USD para EUR, quando aplicáveis, observam a cotação
+    oficial do Banco Central Europeu publicada para a data específica do
+    transação (fonte: frankfurter.app). O total a pagar em EUR é calculado
+    com base na cotação da data de emissão deste extrato. Os valores em
+    moeda estrangeira têm caráter informativo e podem sofrer variação até
+    a efetiva liquidação.
+  </p>
+  <p>
+    O presente extrato possui caráter informativo e está sujeito a
+    conferência final pela coordenação responsável. Eventuais divergências
+    devem ser manifestadas no prazo de 5 (cinco) dias úteis contados do
+    recebimento, sob pena de homologação tácita dos valores apresentados.
+    A apuração não constitui obrigação de pagamento até o encerramento
+    contábil da competência.
+  </p>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,72 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function userDoc() {
+      return firestore.get(/databases/(default)/documents/agentes/$(request.auth.uid)).data;
+    }
+
+    function isSupervisorOrAbove() {
+      return isSignedIn() &&
+        userDoc().active == true &&
+        (
+          userDoc().role == 'supervisor' ||
+          userDoc().role == 'admin' ||
+          userDoc().role == 'super_admin'
+        );
+    }
+
+    // Comprovantes em transactions/{agenteId}/{transactionId}/...
+    //
+    // Estrutura possível de filename:
+    //   - transaction-<i>.<ext>             (criação)
+    //   - conversation-<i>.<ext>        (criação)
+    //   - <kind>-<stamp>-<i>.<ext>      (append na edição direta)
+    //   - pending/<kind>-<stamp>-<i>.<ext>  (subpasta pra edição do gestor
+    //     aguardando aprovação do admin/supervisor)
+    //
+    // IMPORTANTE: usar `allow` SEPARADOS pra dono vs supervisor. Se juntar
+    // num único `allow ... if X || isSupervisorOrAbove()`, o avaliador do CEL
+    // pode chamar `firestore.get(...)` mesmo quando `X` é true, falhando se
+    // o doc não existir. Em rules separadas, a primeira que matchar libera.
+    match /transactions/{agenteId}/{filePath=**} {
+      // Dono da transação: qualquer ação no próprio path.
+      allow read: if isSignedIn() && request.auth.uid == agenteId;
+      allow create, update: if isSignedIn() &&
+        request.auth.uid == agenteId &&
+        request.resource.size < 5 * 1024 * 1024 &&
+        request.resource.contentType.matches('image/.*');
+      allow delete: if isSignedIn() && request.auth.uid == agenteId;
+
+      // Supervisor/admin: qualquer doc (UI já filtra escopo).
+      allow read: if isSupervisorOrAbove();
+      allow create, update: if isSupervisorOrAbove() &&
+        request.resource.size < 5 * 1024 * 1024 &&
+        request.resource.contentType.matches('image/.*');
+      allow delete: if isSupervisorOrAbove();
+    }
+
+    // Avatares em users/{uid}/avatar-{ts}.jpg
+    //   - read: qualquer usuário autenticado (avatares aparecem em listas,
+    //     sidebars, headers: precisa ser visível pra todo mundo).
+    //   - write: SÓ o próprio usuário pode atualizar/remover. Limite 10MB
+    //     pra cobrir foto bruta antes da compressão client-side.
+    match /users/{uid}/{filename} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() &&
+        request.auth.uid == uid &&
+        (
+          request.resource == null ||
+          (
+            request.resource.size < 5 * 1024 * 1024 &&
+            request.resource.contentType.matches('image/.*')
+          )
+        );
+    }
+  }
+}

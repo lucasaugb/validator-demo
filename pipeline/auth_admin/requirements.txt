@@ -1,0 +1,4 @@
+functions-framework>=3.5
+firebase-admin>=6.5
+google-cloud-firestore>=2.16
+cloudevents>=1.10

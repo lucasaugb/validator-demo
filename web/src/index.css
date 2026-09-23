@@ -1,0 +1,377 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --color-app-bg: var(--app-bg);
+  --color-app-card: var(--app-card);
+  --color-app-elev: var(--app-elev);
+  --color-app-input: var(--app-input);
+  --color-app-border: var(--app-border);
+  --color-app-border-strong: var(--app-border-strong);
+  --color-app-text: var(--app-text);
+  --color-app-muted: var(--app-muted);
+  --color-app-subtle: var(--app-subtle);
+  --color-app-accent: var(--app-accent);
+  --color-app-accent-soft: var(--app-accent-soft);
+  --color-app-accent-fg: var(--app-accent-fg);
+  --color-app-accent-text: var(--app-accent-text);
+  --color-app-accent-strong: var(--app-accent-strong);
+  --color-app-pos: var(--app-pos);
+  --color-app-neg: var(--app-neg);
+}
+
+/**
+ * Paleta clara: base fintech, accent GOLD estilo Binance (#f0b90b) pra
+ * elementos primários. Texto sobre o gold é escuro (padrão Binance).
+ */
+:root {
+  /* Workspace CLARO original: só a barra lateral (.rail) é o elemento escuro.
+     O conteúdo fica branco/claro como no print; NÃO acinzentar o fundo. */
+  --app-bg: #f5f6f9;
+  --app-card: #ffffff;
+  --app-elev: #f0f2f6;
+  --app-input: #ffffff;
+  --app-border: #e6e8ee;
+  --app-border-strong: #cdd2db;
+  --app-text: #0a0e1a;
+  --app-muted: #555c70;
+  --app-subtle: #8c92a3;
+
+  /* ── Escala GOLD Binance ──────────────────────────────────────────────
+     accent       = gold puro (fills, botões, dots, barras)
+     accent-fg    = texto ESCURO sobre o gold (padrão Binance)
+     accent-text  = gold ESCURECIDO p/ TEXTO sobre fundo claro (legível!)
+     accent-soft  = tint de fundo bem fraco
+     accent-strong= gold mais forte p/ hover/ênfase                       */
+  --app-accent: #f0b90b;
+  --app-accent-fg: #181a20;
+  --app-accent-text: #8a6608;
+  --app-accent-soft: #fbeec1;
+  --app-accent-strong: #d9a400;
+
+  /* Semânticos estilo Binance: verde alta / vermelho baixa. */
+  --app-pos: #0a9f66;
+  --app-neg: #e23545;
+
+  /* Sombras: card padrão com hairline; elev é para hovers/tooltips. */
+  --shadow-card:
+    0 1px 2px rgba(15, 23, 42, 0.04),
+    0 0 0 1px rgba(15, 23, 42, 0.03);
+  --shadow-elev:
+    0 8px 24px -8px rgba(15, 23, 42, 0.12),
+    0 2px 6px -2px rgba(15, 23, 42, 0.06);
+  --shadow-pop: 0 12px 32px -12px rgba(15, 23, 42, 0.18);
+  --hairline-top: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+
+  color-scheme: light;
+}
+
+.dark {
+  /* Paleta dark near-black estilo Binance (original). Só a barra lateral
+     (.rail) é o elemento diferenciado; o conteúdo segue o dark padrão. */
+  --app-bg: #0b0e11;
+  --app-card: #181a20;
+  --app-elev: #1e2329;
+  --app-input: #0b0e11;
+  --app-border: #2b3139;
+  --app-border-strong: #474d57;
+  --app-text: #eaecef;
+  --app-muted: #848e9c;
+  --app-subtle: #5e6673;
+
+  /* Escala GOLD no dark: gold puro lê bem sobre near-black (cara Binance). */
+  --app-accent: #f0b90b;
+  --app-accent-fg: #181a20;
+  --app-accent-text: #f0b90b;
+  --app-accent-soft: #2a2410;
+  --app-accent-strong: #f8d12f;
+
+  /* Semânticos Binance no dark (mais vivos). */
+  --app-pos: #0ecb81;
+  --app-neg: #f6465d;
+
+  --shadow-card:
+    0 1px 0 0 rgba(0, 0, 0, 0.3),
+    0 0 0 1px rgba(255, 255, 255, 0.02);
+  --shadow-elev:
+    0 8px 28px -8px rgba(0, 0, 0, 0.55),
+    0 2px 6px -2px rgba(0, 0, 0, 0.4);
+  --shadow-pop: 0 16px 40px -8px rgba(0, 0, 0, 0.65);
+  --hairline-top: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+
+  color-scheme: dark;
+}
+
+/**
+ * Rail escuro permanente: cara de "ERPzão" (rail navy fixo + workspace claro
+ * no tema light; workspace near-black no dark). Redefine os tokens app-* pra
+ * uma paleta SLATE-NAVY que vale em qualquer tema: como todos os componentes
+ * da sidebar já consomem `text-app-*`/`bg-app-*`, o rail inteiro recolore sem
+ * tocar a marcação. Aplicado junto com a classe `dark` no <aside> pra ativar
+ * também os variants `dark:` (chips de papel, badge, hover) sobre o navy.
+ *
+ * Fica DEPOIS de `.dark` de propósito: mesma especificidade, então a ordem de
+ * fonte faz o navy vencer o near-black do Binance quando ambos batem no aside.
+ */
+.rail {
+  /* Barra lateral escura #29323f (cor pedida pelo usuário). Os textos/ícones
+     ficam claros pra não sumir sobre o grafite. */
+  --app-bg: #232b36;
+  --app-card: #29323f;
+  --app-elev: #363f4d;
+  --app-input: #232b36;
+  --app-border: #3a4553;
+  --app-border-strong: #4b5768;
+  --app-text: #eef1f5;
+  --app-muted: #a2adbc;
+  --app-subtle: #727d8d;
+
+  /* Accent gold vivo sobre o grafite (logo, ativos). */
+  --app-accent: #f0b90b;
+  --app-accent-fg: #181a20;
+  --app-accent-text: #f0b90b;
+  --app-accent-soft: #2a2410;
+  --app-accent-strong: #f8d12f;
+
+  --app-pos: #0ecb81;
+  --app-neg: #f6465d;
+
+  /* ⚠️ Tailwind v4: as utilities (bg-app-card, text-app-*, border-app-*)
+     consomem os tokens `--color-app-*`, que são RESOLVIDOS no :root. Redefinir
+     só os `--app-*` acima NÃO recolore a sidebar num escopo aninhado, é
+     obrigatório reescrever também os `--color-app-*` aqui. Era o motivo da
+     barra lateral continuar branca. */
+  --color-app-bg: var(--app-bg);
+  --color-app-card: var(--app-card);
+  --color-app-elev: var(--app-elev);
+  --color-app-input: var(--app-input);
+  --color-app-border: var(--app-border);
+  --color-app-border-strong: var(--app-border-strong);
+  --color-app-text: var(--app-text);
+  --color-app-muted: var(--app-muted);
+  --color-app-subtle: var(--app-subtle);
+  --color-app-accent: var(--app-accent);
+  --color-app-accent-soft: var(--app-accent-soft);
+  --color-app-accent-fg: var(--app-accent-fg);
+  --color-app-accent-text: var(--app-accent-text);
+  --color-app-accent-strong: var(--app-accent-strong);
+  --color-app-pos: var(--app-pos);
+  --color-app-neg: var(--app-neg);
+
+  --shadow-card:
+    0 0 0 1px rgba(255, 255, 255, 0.03),
+    0 8px 24px -12px rgba(0, 0, 0, 0.5);
+
+  color-scheme: dark;
+}
+
+/**
+ * Rail no MODO ESCURO: reage ao tema. Só casa quando existe um ancestral
+ * `.dark` (i.e. `html.dark` = dark real); a classe `dark` no próprio <aside>
+ * NÃO dispara isto (elemento não é ancestral de si). Especificidade 0,2,0 >
+ * `.rail` (0,1,0), então vence em dark. Basta trocar os `--app-*`: os
+ * `--color-app-*` definidos no `.rail` re-resolvem via var() sozinhos.
+ *
+ * Grafite BEM mais escuro (#131922) que o #29323f do light: além de combinar
+ * com o conteúdo near-black, cria delta suficiente pra o fade da troca de tema
+ * ser VISÍVEL na sidebar (com #1c232c a diferença era imperceptível e parecia
+ * que a sidebar nem animava). Mantém a família fria do #29323f.
+ */
+.dark .rail {
+  --app-bg: #0e131a;
+  --app-card: #131922;
+  --app-elev: #212a35;
+  --app-input: #0e131a;
+  --app-border: #28313d;
+  --app-border-strong: #3a4552;
+  --app-text: #eef1f5;
+  --app-muted: #96a2b2;
+  --app-subtle: #66717f;
+}
+
+/**
+ * A sidebar acompanha a MESMA transição suave do body ao trocar de tema.
+ * Sem isto o rail "snapa" enquanto o conteúdo faz fade (0.2s no body) e fica
+ * dessincronizado: foi o que passou a incomodar depois do rail escuro. Cobre
+ * bg/borda/texto de todos os elementos do rail. Não dispara no load (só em
+ * mudança de valor) e engloba de leve os hovers dos itens de nav (0.2s, ok).
+ */
+.rail,
+.rail * {
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease;
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family:
+    'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI Variable Text',
+    'Segoe UI', Roboto, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: 'cv11', 'ss03', 'cv02', 'ss01';
+  letter-spacing: -0.005em;
+  background: var(--app-bg);
+  color: var(--app-text);
+  transition: background-color 0.2s, color 0.2s;
+}
+
+.tabular-nums,
+table {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+}
+
+/* Surface: card branco arredondado grande (estilo Apex), com sombra suave. */
+@utility surface {
+  background-color: var(--app-card);
+  border: 1px solid var(--app-border);
+  border-radius: 1rem;
+  box-shadow: var(--shadow-card);
+}
+
+/* Surface elevado pra cards destacados: aceita accent bg via inline style. */
+@utility surface-accent {
+  background:
+    radial-gradient(120% 140% at 100% 0%, color-mix(in oklab, var(--app-accent) 80%, transparent), var(--app-accent));
+  color: var(--app-accent-fg);
+  border-radius: 1rem;
+  border: 1px solid color-mix(in oklab, var(--app-accent) 70%, black 15%);
+  box-shadow: var(--shadow-card);
+}
+
+@utility surface-flat {
+  background-color: var(--app-card);
+  border: 1px solid var(--app-border);
+  border-radius: 0.75rem;
+}
+
+@utility surface-elev {
+  background-color: var(--app-elev);
+  border: 1px solid var(--app-border);
+  border-radius: 0.625rem;
+}
+
+/**
+ * "Sistema": bloco com cara de console/painel administrativo, não BI:
+ * cantos pequenos, zero sombra, hairline em vez de elevation, conteúdo denso.
+ * Use no lugar de `surface` quando quiser estética de ferramenta, não dashboard.
+ */
+@utility panel {
+  background-color: var(--app-card);
+  border: 1px solid var(--app-border);
+  border-radius: 0.5rem;
+}
+
+/** Cabeçalho compacto pra `panel`: paddings menores que o de `surface`. */
+@utility panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.5rem 0.875rem;
+  border-bottom: 1px solid var(--app-border);
+  background-color: var(--app-card);
+}
+
+/** Barra de KPIs inline: sem cards individuais, divisores verticais. */
+@utility stat-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  background-color: var(--app-card);
+  border: 1px solid var(--app-border);
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+@utility stat-cell {
+  flex: 1 1 160px;
+  min-width: 160px;
+  padding: 0.75rem 1rem;
+  border-right: 1px solid var(--app-border);
+  background-color: var(--app-card);
+  transition: background-color 0.12s;
+}
+.stat-cell:last-child {
+  border-right: 0;
+}
+.stat-cell.is-clickable {
+  cursor: pointer;
+}
+.stat-cell.is-clickable:hover {
+  background-color: var(--app-elev);
+}
+
+/** Toolbar tipo IDE/console: segmented tabs flat. */
+@utility seg {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--app-border);
+  border-radius: 0.5rem;
+  background-color: var(--app-card);
+  padding: 2px;
+}
+@utility seg-item {
+  padding: 0.25rem 0.625rem;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--app-muted);
+  border-radius: 0.375rem;
+  transition: background-color 0.12s, color 0.12s;
+}
+.seg-item:hover {
+  color: var(--app-text);
+}
+.seg-item[aria-selected='true'] {
+  background-color: var(--app-elev);
+  color: var(--app-text);
+  box-shadow: inset 0 0 0 1px var(--app-border);
+}
+
+/* Botão CTA primário no accent GOLD Binance. */
+@utility btn-accent {
+  background-color: var(--app-accent);
+  color: var(--app-accent-fg);
+  border-radius: 0.625rem;
+  transition: opacity 0.15s, transform 0.05s;
+}
+.btn-accent:hover {
+  background-color: var(--app-accent-strong);
+}
+.btn-accent:active {
+  transform: translateY(0.5px);
+}
+
+/* Hairline pra dividir seções */
+@utility hairline {
+  background-image: linear-gradient(
+    to right,
+    transparent,
+    var(--app-border) 15%,
+    var(--app-border) 85%,
+    transparent
+  );
+  height: 1px;
+}
+
+/* Glassy pill: usado em chips de delta sobre o card accent. */
+@utility chip-on-accent {
+  background-color: color-mix(in oklab, white 18%, transparent);
+  color: var(--app-accent-fg);
+  backdrop-filter: blur(8px);
+}
+
+@layer base {
+  *:focus-visible {
+    outline: 2px solid color-mix(in oklab, var(--app-accent) 60%, transparent);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+}
